@@ -1,6 +1,7 @@
 from pathlib import Path
 import textwrap
 from typing import Optional
+from urllib.parse import urlparse
 
 from django.conf import settings
 from django.utils.text import slugify
@@ -112,3 +113,22 @@ def write_repository_manifest(repository, image_reference: Optional[str] = None)
         encoding='utf-8',
     )
     return manifest_path
+
+
+def extract_repo_slug(url: str) -> Optional[str]:
+    """Return '<owner>/<repo>' from a git URL if possible."""
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        path = parsed.path.strip('/')
+        if path.endswith('.git'):
+            path = path[:-4]
+        parts = [p for p in path.split('/') if p]
+        if len(parts) >= 2:
+            owner = parts[-2]
+            repo = parts[-1]
+            return f"{owner}/{repo}"
+    except Exception:
+        return None
+    return None

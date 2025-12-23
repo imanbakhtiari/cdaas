@@ -1,0 +1,14 @@
+repository:
+  name: cdaas-iman
+  url: https://github.com/imanbakhtiari/cdaas
+  branch: main
+nexus:
+  registry: 
+  repository: 
+  username: 
+  password: 
+  image: 
+kubernetes:
+  namespace: default
+  kubeconfig: |-
+    # kubeconfig not provided

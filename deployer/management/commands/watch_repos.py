@@ -8,7 +8,12 @@ from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
 from deployer.models import Repository, Build, Deployment
-from deployer.utils import detect_language, generate_dockerfile, write_repository_manifest
+from deployer.utils import (
+    detect_language,
+    generate_dockerfile,
+    write_repository_manifest,
+    extract_repo_slug,
+)
 
 
 class Command(BaseCommand):
@@ -140,9 +145,14 @@ class Command(BaseCommand):
 
         repository_name = (repo.nexus_repository or '').strip()
         if not repository_name:
-            repository_name = slugify(repo.name) or f"repository-{repo.pk}"
+            derived_slug = extract_repo_slug(repo.url)
+            if derived_slug:
+                repository_name = derived_slug
+            else:
+                repository_name = slugify(repo.name) or f"repository-{repo.pk}"
 
-        image_reference = f"{registry}/{repository_name}:{build.id}"
+        tag = (build.commit or str(build.id))[:12]
+        image_reference = f"{registry}/{repository_name}:{tag}"
         outputs: list[str] = []
 
         if repo.nexus_username and repo.nexus_password:

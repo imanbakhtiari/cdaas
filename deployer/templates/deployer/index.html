@@ -4,67 +4,303 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <title>Deployer - Repositories</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        background-color: #1f1f23;
+        color: #e4e4e7;
+      }
+      body.theme-light {
+        color-scheme: light;
+        background-color: #f1f3f5;
+        color: #212529;
+      }
+      .table {
+        --bs-table-bg: #2b2b32;
+        --bs-table-border-color: #3d3d45;
+        --bs-table-striped-bg: #26262c;
+        --bs-table-striped-color: #e4e4e7;
+        --bs-table-color: #e4e4e7;
+      }
+      body.theme-light .table {
+        --bs-table-bg: #fff;
+        --bs-table-border-color: #dee2e6;
+        --bs-table-striped-bg: rgba(0, 0, 0, 0.03);
+        --bs-table-striped-color: #212529;
+        --bs-table-color: #212529;
+      }
+      .card-surface {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+      }
+      .card-surface p,
+      .card-surface h3,
+      .card-surface .text-muted {
+        color: #f5f5f5 !important;
+      }
+      body.theme-light .card-surface {
+        background-color: #fff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+      }
+      body.theme-light .card-surface p,
+      body.theme-light .card-surface h3,
+      body.theme-light .card-surface .text-muted {
+        color: #212529 !important;
+      }
+      .btn-toggle-theme {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1031;
+      }
+      .layout {
+        display: flex;
+        min-height: 100vh;
+      }
+      .sidebar {
+        width: 240px;
+        background-color: #14151d;
+        color: #a4a4b0;
+        display: flex;
+        flex-direction: column;
+        padding: 2rem 1.5rem;
+        border-right: 1px solid #1f1f29;
+      }
+      body.theme-light .sidebar {
+        background-color: #fff;
+        border-color: #dee2e6;
+        color: #495057;
+      }
+      .sidebar h4 {
+        color: #fff;
+        margin-bottom: 2rem;
+      }
+      body.theme-light .sidebar h4 {
+        color: #212529;
+      }
+      .sidebar .nav-link {
+        color: inherit;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        font-weight: 500;
+      }
+      .sidebar .nav-link.active,
+      .sidebar .nav-link:hover {
+        background-color: #2563eb;
+        color: #fff;
+      }
+      body.theme-light .sidebar .nav-link.active,
+      body.theme-light .sidebar .nav-link:hover {
+        background-color: #0d6efd;
+        color: #fff;
+      }
+      a {
+        color: #9ecbff;
+      }
+      body.theme-light a {
+        color: #0d6efd;
+      }
+      .modal-content {
+        background-color: #2b2b32;
+        color: #e4e4e7;
+      }
+      .modal-content pre {
+        background-color: #1a1a1f !important;
+        color: #f8f9fa !important;
+      }
+      body.theme-light .modal-content {
+        background-color: #fff;
+        color: #212529;
+      }
+      body.theme-light .modal-content pre {
+        background-color: #212529 !important;
+        color: #f8f9fa !important;
+      }
+    </style>
+    <title>CDaas</title>
   </head>
-  <body class="p-4">
-    <div class="container">
-      <h1 class="mb-4">Repositories</h1>
-      {% if messages %}
-        {% for message in messages %}
-          <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-      <table class="table table-striped align-middle">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>URL</th>
-            <th>Branch</th>
-            <th>Registry Domain</th>
-            <th>Namespace</th>
-            <th>Actions</th>
-            <th>Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in repos %}
-          <tr>
-            <td>{{ r.name }}</td>
-            <td><a href="{{ r.url }}" target="_blank">{{ r.url }}</a></td>
-            <td>{{ r.branch }}</td>
-            <td>{{ r.registry_domain|default:"Not configured" }}</td>
-            <td>{{ r.kubernetes_namespace }}</td>
-            <td>
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-secondary"
-                data-bs-toggle="modal"
-                data-bs-target="#configModal"
-                data-repo="{{ r.name }}"
-                data-registry="{{ r.registry_domain }}"
-                data-registry-repo="{{ r.nexus_repository|default:'' }}"
-                data-registry-username="{{ r.nexus_username|default:'' }}"
-                data-k8s-namespace="{{ r.kubernetes_namespace }}"
-                data-kubeconfig-id="kubeconfig-{{ r.id }}"
-              >
-                View config
-              </button>
-              <textarea id="kubeconfig-{{ r.id }}" class="d-none">{{ r.kubeconfig|default_if_none:'' }}</textarea>
-            </td>
-            <td>{{ r.created_at }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="7">No repositories configured.</td></tr>
+  <body class="p-0">
+    <button id="themeToggle" class="btn btn-sm btn-secondary btn-toggle-theme">Switch to light mode</button>
+    <div class="layout">
+      <aside class="sidebar">
+        <h4>CDaas</h4>
+        <nav class="nav flex-column gap-2" id="sidebarNav">
+          <a class="nav-link active" href="#" data-section="dashboard">Dashboard</a>
+          <a class="nav-link" href="#" data-section="repos">Repositories</a>
+          <a class="nav-link" href="#" data-section="pipelines">Recent Pipelines</a>
+          <a class="nav-link" href="#" data-section="addRepo">Add Repository</a>
+        </nav>
+      </aside>
+      <main class="flex-grow-1 p-4">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
           {% endfor %}
-        </tbody>
-      </table>
-      <hr class="my-5">
-      <h2 class="mb-3">Add Repository</h2>
-      <form method="post" class="row g-3">
+        {% endif %}
+
+        <section id="dashboard" class="mb-5 content-section" data-section="dashboard">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <div class="card-surface">
+                <p class="text-uppercase text-muted small mb-1">Repositories</p>
+                <h3 class="mb-0">{{ stats.repositories }}</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card-surface">
+                <p class="text-uppercase text-muted small mb-1">Registries configured</p>
+                <h3 class="mb-0">{{ stats.registries_ready }}</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card-surface">
+                <p class="text-uppercase text-muted small mb-1">Kubeconfigs</p>
+                <h3 class="mb-0">{{ stats.kubeconfigs_ready }}</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card-surface">
+                <p class="text-uppercase text-muted small mb-1">Builds tracked</p>
+                <h3 class="mb-0">{{ stats.recent_builds }}</h3>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="repos" class="mb-5 content-section d-none" data-section="repos">
+          <h2 class="mb-3">Repositories</h2>
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>URL</th>
+                <th>Branch</th>
+                <th>Registry Domain</th>
+                <th>Namespace</th>
+                <th>Actions</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in repos %}
+              <tr>
+                <td>{{ r.name }}</td>
+                <td><a href="{{ r.url }}" target="_blank">{{ r.url }}</a></td>
+                <td>{{ r.branch }}</td>
+                <td>{{ r.registry_domain|default:"Not configured" }}</td>
+                <td>{{ r.kubernetes_namespace }}</td>
+                <td class="d-flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-warning edit-repo-btn"
+                    data-repo-id="{{ r.id }}"
+                    data-name="{{ r.name|escape }}"
+                    data-url="{{ r.url|escape }}"
+                    data-branch="{{ r.branch|escape }}"
+                    data-username="{{ r.username|default_if_none:''|escape }}"
+                    data-password="{{ r.password|default_if_none:''|escape }}"
+                    data-nexus-registry="{{ r.nexus_registry|default_if_none:''|escape }}"
+                    data-nexus-repository="{{ r.nexus_repository|default_if_none:''|escape }}"
+                    data-nexus-username="{{ r.nexus_username|default_if_none:''|escape }}"
+                    data-nexus-password="{{ r.nexus_password|default_if_none:''|escape }}"
+                    data-namespace="{{ r.kubernetes_namespace|default_if_none:''|escape }}"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#configModal"
+                    data-repo="{{ r.name }}"
+                    data-registry="{{ r.registry_domain }}"
+                    data-registry-repo="{{ r.nexus_repository|default:'' }}"
+                    data-registry-username="{{ r.nexus_username|default:'' }}"
+                    data-k8s-namespace="{{ r.kubernetes_namespace }}"
+                    data-kubeconfig-id="kubeconfig-{{ r.id }}"
+                  >
+                    View config
+                  </button>
+                  <textarea id="kubeconfig-{{ r.id }}" class="d-none">{{ r.kubeconfig|default_if_none:'' }}</textarea>
+                </td>
+                <td>{{ r.created_at }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7">No repositories configured.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+
+        <section id="pipelines" class="mb-5 content-section d-none" data-section="pipelines">
+          <h2 class="mb-3">Recent Pipelines</h2>
+          <table class="table table-bordered align-middle">
+            <thead>
+              <tr>
+                <th>Repository</th>
+                <th>Commit</th>
+                <th>Status</th>
+                <th>Image</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for build in builds %}
+              <tr>
+                <td>{{ build.repository.name }}</td>
+                <td><code>{{ build.commit|default:"-" }}</code></td>
+                <td>
+                  {% if build.status == 'success' %}
+                    <span class="badge text-bg-success">Success</span>
+                  {% elif build.status == 'failed' %}
+                    <span class="badge text-bg-danger">Failed</span>
+                  {% elif build.status == 'running' %}
+                    <span class="badge text-bg-warning text-dark">Running</span>
+                  {% else %}
+                    <span class="badge text-bg-secondary">{{ build.status }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ build.image|default:"-" }}</td>
+                <td>{{ build.created_at }}</td>
+                <td>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#logModal"
+                    data-build-id="{{ build.id }}"
+                    data-build-repo="{{ build.repository.name }}"
+                    data-build-status="{{ build.status }}"
+                  >
+                    View log
+                  </button>
+                  <textarea id="build-log-{{ build.id }}" class="d-none">{{ build.log|default_if_none:'' }}</textarea>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6">No builds have run yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+
+        <section id="addRepo" class="mb-5 content-section d-none" data-section="addRepo">
+          <div class="d-flex align-items-center justify-content-between">
+            <h2 class="mb-3" id="formTitle">
+              {% if editing_repo_id %}Edit Repository{% else %}Add Repository{% endif %}
+            </h2>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="resetRepoForm">Reset form</button>
+          </div>
+          <form method="post" class="row g-3" id="repoForm">
         {% csrf_token %}
+        <input type="hidden" name="repo_id" id="repoIdField" value="{{ editing_repo_id }}">
         {{ form.non_field_errors }}
         <div class="col-md-6">
           <label class="form-label">Name</label>
@@ -148,6 +384,26 @@
           <button type="submit" class="btn btn-primary">Save Repository</button>
         </div>
       </form>
+        </section>
+      </main>
+    </div>
+    <!-- Build log modal -->
+    <div class="modal fade" id="logModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Build log</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">
+              <strong>Repository:</strong> <span id="logModalRepo"></span><br>
+              <strong>Status:</strong> <span id="logModalStatus"></span>
+            </p>
+            <pre class="bg-light border rounded p-3" id="logModalContent" style="max-height: 400px; overflow:auto;"></pre>
+          </div>
+        </div>
+      </div>
     </div>
     <!-- Config modal -->
     <div class="modal fade" id="configModal" tabindex="-1" aria-hidden="true">
@@ -179,9 +435,46 @@
         </div>
       </div>
     </div>
-    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+      const themeToggle = document.getElementById('themeToggle');
+      const storedTheme = localStorage.getItem('deployerTheme') || 'dark';
+      document.body.classList.toggle('theme-light', storedTheme === 'light');
+      themeToggle.textContent = storedTheme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+
+      themeToggle.addEventListener('click', () => {
+        const isLight = document.body.classList.toggle('theme-light');
+        const nextTheme = isLight ? 'light' : 'dark';
+        localStorage.setItem('deployerTheme', nextTheme);
+        themeToggle.textContent = isLight ? 'Switch to dark mode' : 'Switch to light mode';
+      });
+
+      const sectionLinks = document.querySelectorAll('#sidebarNav .nav-link');
+      const sections = document.querySelectorAll('.content-section');
+
+      const showSection = target => {
+        sectionLinks.forEach(l => {
+          const isActive = l.getAttribute('data-section') === target;
+          l.classList.toggle('active', isActive);
+        });
+        sections.forEach(section => {
+          const match = section.getAttribute('data-section') === target;
+          section.classList.toggle('d-none', !match);
+        });
+        localStorage.setItem('deployerSection', target);
+      };
+
+      const storedSection = localStorage.getItem('deployerSection') || 'dashboard';
+      showSection(storedSection);
+
+      sectionLinks.forEach(link => {
+        link.addEventListener('click', event => {
+          event.preventDefault();
+          const target = link.getAttribute('data-section');
+          showSection(target);
+        });
+      });
+
       const configModal = document.getElementById('configModal');
       configModal.addEventListener('show.bs.modal', event => {
         const button = event.relatedTarget;
@@ -201,6 +494,80 @@
         document.getElementById('modalNamespace').textContent = namespaceValue;
         document.getElementById('modalKubeconfig').textContent = kubeconfigText || 'No kubeconfig stored.';
       });
+
+      const logModal = document.getElementById('logModal');
+      logModal.addEventListener('show.bs.modal', event => {
+        const button = event.relatedTarget;
+        const buildId = button.getAttribute('data-build-id');
+        const repoName = button.getAttribute('data-build-repo') || '';
+        const status = button.getAttribute('data-build-status') || '';
+        const logSource = document.getElementById(`build-log-${buildId}`);
+        const logText = logSource ? logSource.textContent.trim() : '';
+
+        document.getElementById('logModalRepo').textContent = repoName;
+        document.getElementById('logModalStatus').textContent = status;
+        document.getElementById('logModalContent').textContent = logText || 'No log captured for this build.';
+      });
+
+      const repoForm = document.getElementById('repoForm');
+      const repoIdField = document.getElementById('repoIdField');
+      const formTitle = document.getElementById('formTitle');
+      const resetButton = document.getElementById('resetRepoForm');
+
+      const setFieldValue = (name, value) => {
+        if (!repoForm) {
+          return;
+        }
+        const field = repoForm.querySelector(`[name="${name}"]`);
+        if (!field) {
+          return;
+        }
+        if (field.tagName === 'SELECT' || field.tagName === 'INPUT' || field.tagName === 'TEXTAREA') {
+          field.value = value || '';
+        }
+      };
+
+      document.querySelectorAll('.edit-repo-btn').forEach(button => {
+        button.addEventListener('click', () => {
+          if (!repoForm) {
+            return;
+          }
+          const repoId = button.getAttribute('data-repo-id');
+          if (repoIdField) {
+            repoIdField.value = repoId;
+          }
+          setFieldValue('name', button.getAttribute('data-name'));
+          setFieldValue('url', button.getAttribute('data-url'));
+          setFieldValue('branch', button.getAttribute('data-branch'));
+          setFieldValue('username', button.getAttribute('data-username'));
+          setFieldValue('password', button.getAttribute('data-password'));
+          setFieldValue('nexus_registry', button.getAttribute('data-nexus-registry'));
+          setFieldValue('nexus_repository', button.getAttribute('data-nexus-repository'));
+          setFieldValue('nexus_username', button.getAttribute('data-nexus-username'));
+          setFieldValue('nexus_password', button.getAttribute('data-nexus-password'));
+          setFieldValue('kubernetes_namespace', button.getAttribute('data-namespace'));
+          const kubeText = document.getElementById(`kubeconfig-${repoId}`);
+          setFieldValue('kubeconfig', kubeText ? kubeText.textContent.trim() : '');
+          formTitle.textContent = `Edit Repository (${button.getAttribute('data-name')})`;
+          localStorage.setItem('deployerSection', 'addRepo');
+          showSection('addRepo');
+        });
+      });
+
+      if (resetButton) {
+        resetButton.addEventListener('click', () => {
+          repoForm.reset();
+          if (repoIdField) {
+            repoIdField.value = '';
+          }
+          formTitle.textContent = 'Add Repository';
+        });
+      }
+
+      if (repoIdField && repoIdField.value) {
+        formTitle.textContent = 'Edit Repository';
+        localStorage.setItem('deployerSection', 'addRepo');
+      }
     </script>
   </body>
   </html>
