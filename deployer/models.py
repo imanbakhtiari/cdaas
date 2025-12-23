@@ -27,6 +27,7 @@ class Repository(models.Model):
         null=True,
         help_text="Paste the kubeconfig YAML used for deployments.",
     )
+    last_revision = models.CharField(max_length=64, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -52,6 +53,7 @@ class Build(models.Model):
     repository = models.ForeignKey(Repository, on_delete=models.CASCADE, related_name='builds')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     image = models.CharField(max_length=300, blank=True, null=True)
+    commit = models.CharField(max_length=64, blank=True, null=True)
     log = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

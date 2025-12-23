@@ -10,6 +10,7 @@ class RepositoryAdmin(admin.ModelAdmin):
         'branch',
         'nexus_repository',
         'kubernetes_namespace',
+        'last_revision',
         'created_at',
     )
     search_fields = ('name', 'url', 'nexus_repository')

@@ -1,7 +1,7 @@
 import os
-import tempfile
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -21,24 +21,39 @@ class Command(BaseCommand):
         repos = Repository.objects.all()
         for repo in repos:
             self.stdout.write(f"Processing {repo.name} ({repo.url}) branch={repo.branch}")
-            build = Build.objects.create(repository=repo, status='running')
             image_reference = None
+            build: Build | None = None
             log_messages: list[str] = [
-                f"Started build for {repo.name}",
                 f"Git URL: {repo.url}",
                 f"Branch: {repo.branch}",
             ]
             tempdir = tempfile.mkdtemp(prefix='deployer_')
+            current_revision = None
             try:
                 clone_cmd = ['git', 'clone', '--depth', '1', '--branch', repo.branch, repo.url, tempdir]
                 log_messages.append('Cloning repository...')
                 clone_proc = subprocess.run(clone_cmd, capture_output=True, text=True)
                 if clone_proc.returncode != 0:
-                    build.status = 'failed'
                     error_msg = clone_proc.stderr.strip() or clone_proc.stdout.strip()
                     log_messages.append(f"Failed to clone repository: {error_msg}")
-                    continue
+                    raise RuntimeError('Clone failed')
                 log_messages.append('Repository cloned successfully.')
+
+                current_revision = self._get_head_revision(tempdir)
+                log_messages.append(f"Latest commit: {current_revision}")
+
+                if repo.last_revision and repo.last_revision == current_revision:
+                    self.stdout.write(
+                        self.style.NOTICE(f"No changes in {repo.name}; skipping CI/CD pipeline.")
+                    )
+                    continue
+
+                build = Build.objects.create(
+                    repository=repo,
+                    status='running',
+                    commit=current_revision,
+                )
+                log_messages.insert(0, f"Started build for {repo.name} (commit {current_revision})")
 
                 framework = detect_language(tempdir)
                 log_messages.append(f"Detected framework: {framework}")
@@ -55,14 +70,12 @@ class Command(BaseCommand):
                     try:
                         image_reference, output = self._build_and_push_image(repo, tempdir, build)
                         build.image = image_reference
-                        push_message = f"Image pushed to {image_reference}"
-                        log_messages.append(push_message)
+                        log_messages.append(f"Image pushed to {image_reference}")
                         if output:
                             log_messages.append(output)
                     except Exception as exc:  # noqa: BLE001
-                        build.status = 'failed'
                         log_messages.append(f"Image build/push failed: {exc}")
-                        continue
+                        raise
                 else:
                     log_messages.append('Nexus registry or repository missing; skipping image push.')
 
@@ -80,34 +93,44 @@ class Command(BaseCommand):
                     except Exception as exc:  # noqa: BLE001
                         deployment.status = 'failed'
                         deployment.save(update_fields=['status'])
-                        build.status = 'failed'
                         log_messages.append(f"Kubernetes deployment failed: {exc}")
-                        continue
+                        raise
                 elif not repo.kubeconfig:
                     log_messages.append('No kubeconfig configured; skipping Kubernetes deployment.')
                 else:
                     log_messages.append('Image not available; skipping deployment.')
 
-                build.status = 'success'
+                if build:
+                    build.status = 'success'
             except Exception as exc:  # noqa: BLE001
-                build.status = 'failed'
-                log_messages.append(f"Unexpected error: {exc}")
+                if build:
+                    build.status = 'failed'
+                else:
+                    build = Build.objects.create(
+                        repository=repo,
+                        status='failed',
+                        commit=current_revision,
+                    )
+                log_messages.append(f"Pipeline terminated: {exc}")
             finally:
-                try:
-                    manifest_path = write_repository_manifest(repo, image_reference)
-                    log_messages.append(f"Manifest exported to {manifest_path}")
-                except Exception as exc:  # noqa: BLE001
-                    log_messages.append(f"Failed to write manifest: {exc}")
-
                 shutil.rmtree(tempdir, ignore_errors=True)
 
-                build.log = "\n".join(filter(None, log_messages)).strip()
-                build.save(update_fields=['status', 'log', 'image'])
+                if build:
+                    try:
+                        manifest_path = write_repository_manifest(repo, image_reference)
+                        log_messages.append(f"Manifest exported to {manifest_path}")
+                    except Exception as exc:  # noqa: BLE001
+                        log_messages.append(f"Failed to write manifest: {exc}")
 
-                if build.status == 'success':
-                    self.stdout.write(self.style.SUCCESS(f"{repo.name} processed successfully."))
-                else:
-                    self.stdout.write(self.style.ERROR(f"{repo.name} failed. See build log for details."))
+                    build.log = "\n".join(filter(None, log_messages)).strip()
+                    build.save(update_fields=['status', 'log', 'image', 'commit'])
+
+                    if build.status == 'success' and build.commit:
+                        repo.last_revision = build.commit
+                        repo.save(update_fields=['last_revision'])
+                        self.stdout.write(self.style.SUCCESS(f"{repo.name} processed successfully."))
+                    elif build.status == 'failed':
+                        self.stdout.write(self.style.ERROR(f"{repo.name} failed. See build log for details."))
 
     def _build_and_push_image(self, repo, context_dir: str, build: Build) -> tuple[str, str]:
         """Build a Docker image from context_dir and push it to Nexus."""
@@ -227,3 +250,11 @@ spec:
         if value.startswith('http://') or value.startswith('https://'):
             value = value.split('://', 1)[1]
         return value
+
+    @staticmethod
+    def _get_head_revision(repo_path: str) -> str:
+        cmd = ['git', '-C', repo_path, 'rev-parse', 'HEAD']
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or 'Unable to determine repository revision.')
+        return proc.stdout.strip()
