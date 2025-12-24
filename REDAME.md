@@ -1,7 +1,7 @@
 # CDaas 
 
 test
-newcicd
+newcicdtest
 
 ```
 python3 manage.py runserver
